@@ -1,3 +1,4 @@
+# Copyright 2025 Compucolor Pictures Ltd.
 # Copyright 2019, Luna 'Ryuko' Zaremba
 
 # SourceMayaTools is free software: you can redistribute it and/or modify
@@ -24,6 +25,9 @@
 #   + Add a config variable to replace the first underscore in joint names with a dot
 # VERSION 1.2
 #   + Experimental scale support
+#
+# Compucolor VERSION 1.2.1 (mlarsen Dec 2025)
+#   + Port to Python3/Maya 2025
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------------------- Customization (You can change these values!) ----------------------------------------------------------
@@ -45,12 +49,12 @@ import os.path
 import traceback
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaAnim as OpenMayaAnim
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import socket
 import subprocess
 import webbrowser
-import Queue
-import _winreg as reg
+import queue
+import winreg as reg
 import time
 import struct
 import shutil
@@ -127,7 +131,7 @@ def GetJointList():
             continue
         
         # Breadth first search of joint tree
-        searchQueue = Queue.Queue(0)
+        searchQueue = queue.Queue(0)
         searchQueue.put((-1, dagNode, True)) # (index = child node's parent index, child node)
         while not searchQueue.empty():
             node = searchQueue.get()
@@ -457,7 +461,7 @@ def GetShapes(joints):
         while not vertIter.isDone():
             if not hasSkin:
                 verts.append((vertIter.position(OpenMaya.MSpace.kWorld), []))
-                vertIter.next()
+                next(vertIter)
                 continue
             
             # Get weight values
@@ -498,7 +502,7 @@ def GetShapes(joints):
             ))
             
             # Next vert
-            vertIter.next()
+            next(vertIter)
         
         # Get materials used by this mesh
         meshMaterials = GetMaterialsFromMesh(mesh, dagPath)
@@ -513,7 +517,7 @@ def GetShapes(joints):
             # Every face must have a material
             if polyMaterial == None:
                 PrintWarning("Found no material on face '%s.f[%d]'; ignoring face" % (dagPath.partialPathName(), polyIter.index()))
-                polyIter.next()
+                next(polyIter)
                 continue
             
             # Add this poly's material to the global list of used materials
@@ -543,7 +547,7 @@ def GetShapes(joints):
             polyIter.getNormals(normals, OpenMaya.MSpace.kWorld)
             
             # Add each triangle in this poly to the global face list
-            for i in range(triangleIndices.length()/3): # vertexIndices.length() has 3 values per triangle
+            for i in range(triangleIndices.length()//3): # vertexIndices.length() has 3 values per triangle
                 # Put local indices into an array for easy access
                 locals = [localTriangleIndices[i*3], localTriangleIndices[i*3+1], localTriangleIndices[i*3+2]]
                 
@@ -568,7 +572,7 @@ def GetShapes(joints):
                 ))
             
             # Next poly
-            polyIter.next()
+            next(polyIter)
         
         # Update starting vertex index
         currentStartingVertIndex = len(verts)
@@ -604,7 +608,7 @@ def ExportSMDModel(filePath):
     # Get data
     joints = GetJointList()
     if len(joints) > 128:
-        print "Warning: More than 128 joints have been selected. The model might not compile."
+        print("Warning: More than 128 joints have been selected. The model might not compile.")
 
     shapes = GetShapes(joints)
     if type(shapes) == str:
@@ -695,7 +699,7 @@ def ExportSMDAnim(filePath):
     if len(joints) == 0:
         return "Error: No joints selected for export"
     if len(joints) > 128:
-        print "Warning: More than 128 joints have been selected. The animation might not compile."
+        print("Warning: More than 128 joints have been selected. The animation might not compile.")
 
     frameStart = cmds.intField(OBJECT_NAMES['smdanim'][0]+"_FrameStartField", query=True, value=True)
     frameEnd = cmds.intField(OBJECT_NAMES['smdanim'][0]+"_FrameEndField", query=True, value=True)
@@ -1282,10 +1286,10 @@ def SaveReminder(allowUnsaved=True):
 def PrintWarning(message):
     global WarningsDuringExport
     if WarningsDuringExport < MAX_WARNINGS_SHOWN:
-        print "WARNING: %s" % message
+        print("WARNING: %s" % message)
         WarningsDuringExport += 1
     elif WarningsDuringExport == MAX_WARNINGS_SHOWN:
-        print "More warnings not shown because printing text is slow...\n"
+        print("More warnings not shown because printing text is slow...\n")
         WarningsDuringExport = MAX_WARNINGS_SHOWN+1
 
 def MessageBox(message):
@@ -1394,7 +1398,7 @@ def GeneralWindow_ExportSelected(windowID, exportingMultiple):
     
     # Handle response
     
-    if type(response) == str or type(response) == unicode:
+    if type(response) == str or type(response) == str:
         if exportingMultiple:
             MessageBox("Slot %i\n\n%s" % (slotIndex, response))
         else:
@@ -1424,7 +1428,7 @@ def GeneralWindow_ExportMultiple(windowID):
     for i in range(1, EXPORT_WINDOW_NUMSLOTS+1):
         useInMultiExport = cmds.getAttr(OBJECT_NAMES[windowID][2]+(".useinmultiexport[%i]" % i))
         if useInMultiExport:
-            print "Exporting slot %i in multiexport" % i
+            print("Exporting slot %i in multiexport" % i)
             cmds.optionMenu(OBJECT_NAMES[windowID][0]+"_SlotDropDown", edit=True, select=i)
             exec(OBJECT_NAMES[windowID][3] + "()") # Refresh window
             if GeneralWindow_GetSavedSelection(windowID):
